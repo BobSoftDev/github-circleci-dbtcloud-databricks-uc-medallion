@@ -1,0 +1,56 @@
+version: 2.1
+
+jobs:
+  dbt_build:
+    docker:
+      - image: cimg/python:3.11
+    environment:
+      DBT_PROFILES_DIR: /home/circleci/.dbt
+      DBT_PROFILE_NAME: dbt_uc_medallion
+    steps:
+      - checkout
+
+      - run:
+          name: Install dbt (Databricks adapter)
+          command: |
+            python -m pip install --upgrade pip
+            pip install "dbt-databricks==1.11.4"
+
+      - run:
+          name: Generate dbt profiles.yml (no heredoc)
+          command: |
+            mkdir -p "${DBT_PROFILES_DIR}"
+            PROFILES_FILE="${DBT_PROFILES_DIR}/profiles.yml"
+            rm -f "${PROFILES_FILE}"
+
+            echo "${DBT_PROFILE_NAME}:" >> "${PROFILES_FILE}"
+            echo "  target: prod" >> "${PROFILES_FILE}"
+            echo "  outputs:" >> "${PROFILES_FILE}"
+            echo "    prod:" >> "${PROFILES_FILE}"
+            echo "      type: databricks" >> "${PROFILES_FILE}"
+            echo "      host: \"${DB_HOST}\"" >> "${PROFILES_FILE}"
+            echo "      http_path: \"${DB_HTTP_PATH}\"" >> "${PROFILES_FILE}"
+            echo "      token: \"${DB_TOKEN}\"" >> "${PROFILES_FILE}"
+            echo "      catalog: dbt_project_catalog" >> "${PROFILES_FILE}"
+            echo "      schema: dev" >> "${PROFILES_FILE}"
+            echo "      threads: 4" >> "${PROFILES_FILE}"
+
+      - run:
+          name: dbt deps
+          command: |
+            dbt deps --profiles-dir "${DBT_PROFILES_DIR}" --profile "${DBT_PROFILE_NAME}"
+
+      - run:
+          name: dbt seed (Bronze)
+          command: |
+            dbt seed --profiles-dir "${DBT_PROFILES_DIR}" --profile "${DBT_PROFILE_NAME}" --target prod
+
+      - run:
+          name: dbt build (Silver + Gold)
+          command: |
+            dbt build --profiles-dir "${DBT_PROFILES_DIR}" --profile "${DBT_PROFILE_NAME}" --target prod
+
+workflows:
+  build_and_test:
+    jobs:
+      - dbt_build

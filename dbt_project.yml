@@ -1,0 +1,28 @@
+name: "dbt_uc_medallion"
+version: "1.0.0"
+config-version: 2
+
+profile: "dbt_uc_medallion"
+
+model-paths: ["models"]
+seed-paths: ["seeds"]
+macro-paths: ["macros"]
+
+target-path: "target"
+clean-targets: ["target", "dbt_packages"]
+
+models:
+  dbt_uc_medallion:
+    +materialized: table
+
+    silver:
+      +schema: silver
+
+    gold:
+      +schema: gold
+      +materialized: view
+
+seeds:
+  dbt_uc_medallion:
+    +schema: bronze
+    +quote_columns: false
